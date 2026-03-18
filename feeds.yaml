@@ -38,18 +38,18 @@ feeds:
         attributeKey: href
 
   # ── Example: Lobsters ────────────────────────────────────────────────────
-  # - name: lobsters
-  #   site: https://lobste.rs
-  #   metadata:
-  #     title: Lobsters
-  #     description: Computing-focused community
-  #     language: en
-  #   root: ".story"
-  #   fields:
-  #     - for: title
-  #       selector: ".u-url"
-  #       type: textContent
-  #     - for: link
-  #       selector: ".u-url"
-  #       type: attribute
-  #       attributeKey: href
+  - name: threat_protection
+    site: https://learn.jamf.com/r/en-US/jamf-protect-threat-prevention-changelog/Jamf_Protect_Threat_Prevention_Changelog
+    metadata:
+      title: Lobsters
+      description: Computing-focused community
+      language: en
+    root: ".story"
+    fields:
+      - for: title
+        selector: ".u-url"
+        type: textContent
+      - for: link
+        selector: ".u-url"
+        type: attribute
+        attributeKey: href
