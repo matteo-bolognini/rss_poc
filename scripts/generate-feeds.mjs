@@ -3,6 +3,10 @@
  *
  * Reads feeds.yaml, scrapes each configured site, produces RSS XML files,
  * and writes them (along with the static UI) into ./output/ for GitHub Pages.
+ *
+ * Supports two fetch modes per feed:
+ *   - Default: fast HTTP fetch (for static HTML sites)
+ *   - jsRender: true → headless Chromium via Playwright (for JS-rendered SPAs)
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -19,7 +23,25 @@ const OUTPUT_DIR = path.resolve(__dirname, "..", "output");
 const FEEDS_OUTPUT_DIR = path.join(OUTPUT_DIR, "feeds");
 const UI_SOURCE = path.resolve(__dirname, "..", "ui");
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Playwright (lazy-loaded — only imported if a feed needs jsRender) ───────
+
+let _browser = null;
+
+async function getBrowser() {
+  if (_browser) return _browser;
+  const { chromium } = await import("playwright");
+  _browser = await chromium.launch({ headless: true });
+  return _browser;
+}
+
+async function closeBrowser() {
+  if (_browser) {
+    await _browser.close();
+    _browser = null;
+  }
+}
+
+// ── Fetch helpers ───────────────────────────────────────────────────────────
 
 async function fetchHTML(url) {
   const res = await fetch(url, {
@@ -37,6 +59,28 @@ async function fetchHTML(url) {
   return res.text();
 }
 
+async function fetchHTMLWithBrowser(url, waitFor) {
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    console.log(`   ↳ Navigating headless browser…`);
+    await page.goto(url, { waitUntil: "networkidle", timeout: 60_000 });
+
+    // If the user specified a CSS selector to wait for, wait until it appears
+    if (waitFor) {
+      console.log(`   ↳ Waiting for selector: ${waitFor}`);
+      await page.waitForSelector(waitFor, { timeout: 30_000 });
+    } else {
+      // Default: give JS a few extra seconds to finish rendering
+      await page.waitForTimeout(5_000);
+    }
+
+    return await page.content();
+  } finally {
+    await page.close();
+  }
+}
+
 function resolveUrl(href, base) {
   try {
     return new URL(href, base).href;
@@ -45,11 +89,12 @@ function resolveUrl(href, base) {
   }
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+// ── Feed generation ─────────────────────────────────────────────────────────
 
 async function generateFeed(feedConfig) {
-  const { name, site, metadata = {}, root, fields } = feedConfig;
+  const { name, site, metadata = {}, root, fields, jsRender, waitFor } = feedConfig;
   console.log(`\n⟐  Processing "${name}" — ${site}`);
+  if (jsRender) console.log(`   ↳ Using headless browser (jsRender: true)`);
 
   const defaultMeta = {
     title: `${site} Feed`,
@@ -68,7 +113,9 @@ async function generateFeed(feedConfig) {
   // 1. Fetch & parse
   let html;
   try {
-    html = await fetchHTML(site);
+    html = jsRender
+      ? await fetchHTMLWithBrowser(site, waitFor)
+      : await fetchHTML(site);
   } catch (err) {
     console.error(`   ✗ Failed to fetch: ${err.message}`);
     return null;
@@ -125,7 +172,6 @@ async function generateFeed(feedConfig) {
 
     // Only add if we got at least a title or description
     if (feedItem.title || feedItem.description) {
-      // Ensure an id exists — the feed library requires it for some formats
       if (!feedItem.id) {
         feedItem.id = feedItem.link || feedItem.title || `${name}-${Date.now()}`;
       }
@@ -137,8 +183,9 @@ async function generateFeed(feedConfig) {
   return feed.rss2();
 }
 
+// ── Main ────────────────────────────────────────────────────────────────────
+
 async function main() {
-  // ── Read config ────────────────────────────────────────────────────────
   if (!fs.existsSync(FEEDS_PATH)) {
     console.error("feeds.yaml not found — nothing to do.");
     process.exit(1);
@@ -152,10 +199,8 @@ async function main() {
     process.exit(1);
   }
 
-  // ── Prepare output directory ──────────────────────────────────────────
   fs.mkdirSync(FEEDS_OUTPUT_DIR, { recursive: true });
 
-  // ── Generate each feed ────────────────────────────────────────────────
   const manifest = [];
 
   for (const feedConfig of config.feeds) {
@@ -180,22 +225,21 @@ async function main() {
     }
   }
 
-  // ── Write manifest (for the UI) ───────────────────────────────────────
+  // Clean up browser if it was used
+  await closeBrowser();
+
   fs.writeFileSync(
     path.join(OUTPUT_DIR, "manifest.json"),
     JSON.stringify({ feeds: manifest, generated: new Date().toISOString() }, null, 2),
     "utf-8"
   );
 
-  // ── Copy static UI files ──────────────────────────────────────────────
   if (fs.existsSync(UI_SOURCE)) {
     copyDirSync(UI_SOURCE, OUTPUT_DIR);
     console.log(`\n✓ Copied UI files to output/`);
   }
 
-  // ── Copy feeds.yaml so the UI can read the config ─────────────────────
   fs.copyFileSync(FEEDS_PATH, path.join(OUTPUT_DIR, "feeds.yaml"));
-
   console.log(`\n✅ Done — ${manifest.length} feed(s) generated in ./output/`);
 }
 
