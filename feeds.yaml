@@ -1,0 +1,55 @@
+# =============================================================================
+# Select Feed — GitHub Pages Edition
+# =============================================================================
+# Define your RSS feeds below. The GitHub Action will scrape each site on a
+# schedule and publish static .xml files to GitHub Pages.
+#
+# HOW TO FIND CSS SELECTORS:
+#   1. Open the target site in your browser
+#   2. Right-click an item → Inspect
+#   3. Identify the repeating container (the "root" selector)
+#   4. For each field, find the CSS selector *relative* to that root
+#   5. Use the Config Editor UI on your GitHub Pages site for a guided experience
+#
+# FIELD TYPES:
+#   - textContent  → grabs the element's visible text
+#   - attribute    → grabs a specific HTML attribute (set attributeKey)
+#
+# FIELD TARGETS (the "for" key):
+#   title, description, link, content, date, author, image, contributor
+# =============================================================================
+
+feeds:
+  # ── Example: Hacker News front page ──────────────────────────────────────
+  - name: hackernews
+    site: https://news.ycombinator.com
+    metadata:
+      title: Hacker News
+      description: Links for the intellectually curious
+      language: en
+    root: ".athing"
+    fields:
+      - for: title
+        selector: ".titleline > a"
+        type: textContent
+      - for: link
+        selector: ".titleline > a"
+        type: attribute
+        attributeKey: href
+
+  # ── Example: Lobsters ────────────────────────────────────────────────────
+  # - name: lobsters
+  #   site: https://lobste.rs
+  #   metadata:
+  #     title: Lobsters
+  #     description: Computing-focused community
+  #     language: en
+  #   root: ".story"
+  #   fields:
+  #     - for: title
+  #       selector: ".u-url"
+  #       type: textContent
+  #     - for: link
+  #       selector: ".u-url"
+  #       type: attribute
+  #       attributeKey: href

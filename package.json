@@ -1,0 +1,15 @@
+{
+  "name": "select-feed-pages",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serverless RSS feed generator — GitHub Actions + GitHub Pages",
+  "scripts": {
+    "generate": "node scripts/generate-feeds.mjs",
+    "serve": "npx serve output"
+  },
+  "dependencies": {
+    "feed": "^5.1.0",
+    "jsdom": "^27.0.0",
+    "yaml": "^2.7.1"
+  }
+}
